@@ -18,6 +18,11 @@ enum CameraMode: String, Codable, CaseIterable {
     case standard = "Standard iOS"
 }
 
+enum CaptureMode: String, Codable, CaseIterable {
+    case photo = "Foto"
+    case video = "Video"
+}
+
 class CameraSettings: ObservableObject {
     @Published var zoomControlStyle: ZoomControlStyle {
         didSet {
@@ -28,6 +33,12 @@ class CameraSettings: ObservableObject {
     @Published var cameraMode: CameraMode {
         didSet {
             UserDefaults.standard.set(cameraMode.rawValue, forKey: "cameraMode")
+        }
+    }
+    
+    @Published var captureMode: CaptureMode {
+        didSet {
+            UserDefaults.standard.set(captureMode.rawValue, forKey: "captureMode")
         }
     }
     
@@ -45,6 +56,12 @@ class CameraSettings: ObservableObject {
             self.cameraMode = mode
         } else {
             self.cameraMode = .standard
+        }
+        if let savedCaptureMode = UserDefaults.standard.string(forKey: "captureMode"),
+           let mode = CaptureMode(rawValue: savedCaptureMode) {
+            self.captureMode = mode
+        } else {
+            self.captureMode = .photo
         }
     }
 }

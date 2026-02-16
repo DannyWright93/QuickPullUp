@@ -12,6 +12,7 @@ struct CameraView: View {
     @ObservedObject var settings: CameraSettings
     
     @State private var isRecording = false
+    @State private var showSettings = false
     
     init(settings: CameraSettings) {
         self.settings = settings
@@ -27,11 +28,9 @@ struct CameraView: View {
                         media: media,
                         onSave: {
                             saveMedia(media)
-                            cameraManager.capturedMedia = nil
                         },
                         onDelete: {
                             deleteMedia(media)
-                            cameraManager.capturedMedia = nil
                         }
                     )
                 } else {
@@ -40,11 +39,16 @@ struct CameraView: View {
                 }
             } else {
                 // Permission denied
-                VStack {
-                    Text("Camera access required")
-                        .font(.title)
-                    Text("Please enable camera access in Settings")
+                VStack(spacing: 20) {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 60))
                         .foregroundColor(.gray)
+                    Text("Kamera-Zugriff erforderlich")
+                        .font(.title2)
+                    Text("Bitte aktiviere den Kamera-Zugriff in den Einstellungen")
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
                 }
             }
         }
@@ -58,6 +62,9 @@ struct CameraView: View {
         .onDisappear {
             cameraManager.stopSession()
         }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(settings: settings)
+        }
     }
     
     private var cameraInterface: some View {
@@ -67,59 +74,75 @@ struct CameraView: View {
                 .ignoresSafeArea()
             
             VStack {
+                // Top bar
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        showSettings = true
+                    }) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .clipShape(Circle())
+                    }
+                    .padding()
+                }
+                
                 Spacer()
                 
-                // Controls at bottom
-                HStack(spacing: 40) {
-                    // Settings button
-                    Button(action: {
-                        // TODO: Show settings
-                    }) {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 30))
-                            .foregroundColor(.white)
+                // Photo/Video mode switcher
+                HStack(spacing: 30) {
+                    Button("FOTO") {
+                        settings.captureMode = .photo
                     }
+                    .foregroundColor(settings.captureMode == .photo ? .yellow : .white)
+                    .font(.system(size: 16, weight: .semibold))
                     
-                    // Capture button
-                    Button(action: {
+                    Button("VIDEO") {
+                        settings.captureMode = .video
+                    }
+                    .foregroundColor(settings.captureMode == .video ? .yellow : .white)
+                    .font(.system(size: 16, weight: .semibold))
+                }
+                .padding(.bottom, 20)
+                
+                // Capture button
+                Button(action: {
+                    if settings.captureMode == .photo {
+                        cameraManager.capturePhoto()
+                    } else {
                         if isRecording {
-                            cameraManager.stopRecording()
+                            cameraManager.stopRecording() 
                             isRecording = false
                         } else {
-                            cameraManager.capturePhoto()
+                            cameraManager.startRecording()
+                            isRecording = true
                         }
-                    }) {
-                        Circle()
-                            .fill(isRecording ? Color.red : Color.white)
-                            .frame(width: 70, height: 70)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.white, lineWidth: 3)
-                                    .frame(width: 80, height: 80)
-                            )
                     }
-                    .simultaneousGesture(
-                        LongPressGesture(minimumDuration: 0.3)
-                            .onEnded { _ in
-                                cameraManager.startRecording()
-                                isRecording = true
-                            }
-                    )
-                    
-                    // Flip camera (placeholder for now)
-                    Button(action: {
-                        // TODO: Flip camera
-                    }) {
-                        Image(systemName: "camera.rotate")
-                            .font(.system(size: 30))
-                            .foregroundColor(.white)
+                }) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color.white, lineWidth: 4)
+                            .frame(width: 80, height: 80)
+                        
+                        if settings.captureMode == .video && isRecording {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.red)
+                                .frame(width: 30, height: 30)
+                        } else {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 65, height: 65)
+                        }
                     }
                 }
-                .padding(.bottom, 40)
+                .padding(.bottom, 20)
                 
                 // Zoom control
                 zoomControl
-                    .padding(.bottom, 20)
+                    .padding(.bottom, 40)
             }
             
             // Discrete camera switcher (only in discrete mode)
@@ -130,13 +153,14 @@ struct CameraView: View {
                             cameraManager.switchDiscreteCamera(to: .ultraWide)
                         }
                         .foregroundColor(cameraManager.selectedDiscreteCamera == .ultraWide ? .yellow : .white)
+                        .font(.system(size: 18, weight: .semibold))
                         
                         Button("1×") {
                             cameraManager.switchDiscreteCamera(to: .wide)
                         }
                         .foregroundColor(cameraManager.selectedDiscreteCamera == .wide ? .yellow : .white)
+                        .font(.system(size: 18, weight: .semibold))
                     }
-                    .font(.system(size: 18, weight: .semibold))
                     .padding()
                     .background(Color.black.opacity(0.5))
                     .cornerRadius(20)
@@ -154,56 +178,75 @@ struct CameraView: View {
         
         if maxZoom > 1.0 {
             if settings.zoomControlStyle == .wheel {
-                // Zoom wheel (circular)
-                HStack {
-                    Text("\(String(format: "%.1f", cameraManager.currentZoomFactor))×")
-                        .foregroundColor(.white)
-                        .font(.caption)
-                    
-                    Slider(
-                        value: Binding(
-                            get: { cameraManager.currentZoomFactor },
-                            set: { cameraManager.setZoom($0) }
-                        ),
-                        in: 1...maxZoom
-                    )
-                    .frame(width: 150)
-                    .accentColor(.yellow)
-                }
-                .padding()
-                .background(Color.black.opacity(0.5))
-                .cornerRadius(20)
+                // iOS Standard Zoom Wheel
+                iosStandardZoomWheel
             } else {
-                // Zoom slider (vertical)
-                VStack {
-                    Text("\(String(format: "%.1f", cameraManager.currentZoomFactor))×")
-                        .foregroundColor(.white)
-                        .font(.caption)
-                    
-                    Slider(
-                        value: Binding(
-                            get: { cameraManager.currentZoomFactor },
-                            set: { cameraManager.setZoom($0) }
-                        ),
-                        in: 1...maxZoom
-                    )
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: 100, height: 200)
-                    .accentColor(.yellow)
-                }
+                // Horizontal Slider
+                horizontalZoomSlider
             }
         }
     }
     
+    private var iosStandardZoomWheel: some View {
+        HStack(spacing: 15) {
+            ForEach([0.5, 1.0, 2.0, 3.0], id: \.self) { zoom in
+                if zoom <= cameraManager.getMaxZoom() {
+                    Button(action: {
+                        cameraManager.setZoom(zoom)
+                    }) {
+                        Text(zoom == 0.5 ? ".5" : "\(Int(zoom))")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(abs(cameraManager.currentZoomFactor - zoom) < 0.3 ? .yellow : .white)
+                            .frame(width: 35, height: 35)
+                            .background(
+                                Circle()
+                                    .fill(abs(cameraManager.currentZoomFactor - zoom) < 0.3 ? Color.white.opacity(0.2) : Color.clear)
+                            )
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color.black.opacity(0.5))
+        .cornerRadius(25)
+    }
+    
+    private var horizontalZoomSlider: some View {
+        VStack(spacing: 5) {
+            Text("\(String(format: "%.1f", cameraManager.currentZoomFactor))×")
+                .foregroundColor(.white)
+                .font(.caption)
+            
+            Slider(
+                value: Binding(
+                    get: { cameraManager.currentZoomFactor },
+                    set: { cameraManager.setZoom($0) }
+                ),
+                in: 1...cameraManager.getMaxZoom()
+            )
+            .frame(width: 200)
+            .accentColor(.yellow)
+        }
+        .padding()
+        .background(Color.black.opacity(0.5))
+        .cornerRadius(20)
+    }
+    
     private func saveMedia(_ media: CapturedMedia) {
-        // Save to Photos library
-        print("Saving media: \(media.url)")
-        // TODO: Implement save to Photos
+        cameraManager.saveMediaToPhotos(url: media.url, isVideo: media.isVideo) { success in
+            DispatchQueue.main.async {
+                if success {
+                    print("✅ Saved to Photos")
+                } else {
+                    print("❌ Failed to save")
+                }
+                cameraManager.capturedMedia = nil
+            }
+        }
     }
     
     private func deleteMedia(_ media: CapturedMedia) {
-        // Delete temp file
         try? FileManager.default.removeItem(at: media.url)
-        print("Deleted media")
+        cameraManager.capturedMedia = nil
     }
 }

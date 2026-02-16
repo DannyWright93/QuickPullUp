@@ -189,44 +189,59 @@ class CameraManager: NSObject, ObservableObject {
         
         private var videoOutputURL: URL?
         
-        func startRecording() {
-            let tempURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-                .appendingPathExtension("mov")
-            
-            videoOutputURL = tempURL
-            videoOutput.startRecording(to: tempURL, recordingDelegate: self)
+    func startRecording() {
+        guard !videoOutput.isRecording else { return }
+        
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("mov")
+        
+        videoOutputURL = tempURL
+        
+        // Ensure audio is configured
+        let audioDevice = AVCaptureDevice.default(for: .audio)
+        if let audioDevice = audioDevice,
+           let audioInput = try? AVCaptureDeviceInput(device: audioDevice),
+           session.canAddInput(audioInput) {
+            session.addInput(audioInput)
         }
         
-        func stopRecording() {
+        videoOutput.startRecording(to: tempURL, recordingDelegate: self)
+    }
+    
+    func stopRecording() {
+        if videoOutput.isRecording {
             videoOutput.stopRecording()
         }
-        
-        var isRecording: Bool {
-            videoOutput.isRecording
-        }
+    }
+
+    var isRecording: Bool {
+        videoOutput.isRecording
+    }
         
         // MARK: - Save to Photos
         
-        private func saveToPhotos(url: URL, isVideo: Bool) {
-            PHPhotoLibrary.requestAuthorization { status in
-                guard status == .authorized else { return }
-                
-                PHPhotoLibrary.shared().performChanges {
-                    if isVideo {
-                        PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
-                    } else {
-                        PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: url)
-                    }
-                } completionHandler: { success, error in
-                    if success {
-                        print("Saved to Photos")
-                    } else if let error = error {
-                        print("Error saving: \(error)")
-                    }
+    func saveMediaToPhotos(url: URL, isVideo: Bool, completion: @escaping (Bool) -> Void) {
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+            guard status == .authorized else {
+                completion(false)
+                return
+            }
+            
+            PHPhotoLibrary.shared().performChanges {
+                if isVideo {
+                    PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+                } else {
+                    PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: url)
                 }
+            } completionHandler: { success, error in
+                if let error = error {
+                    print("Error saving: \(error)")
+                }
+                completion(success)
             }
         }
+    }
     }
 
     // MARK: - AVCapturePhotoCaptureDelegate
