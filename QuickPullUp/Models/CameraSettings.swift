@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 
 enum ZoomControlStyle: String, Codable, CaseIterable {
     case wheel = "Zoom Rad"

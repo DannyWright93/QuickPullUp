@@ -8,14 +8,35 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var settings = CameraSettings()
+    @State private var showSettings = false
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        ZStack {
+            CameraView(settings: settings)
+            
+            // Settings button overlay
+            VStack {
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        showSettings = true
+                    }) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .clipShape(Circle())
+                    }
+                    .padding()
+                }
+                Spacer()
+            }
         }
-        .padding()
+        .sheet(isPresented: $showSettings) {
+            SettingsView(settings: settings)
+        }
     }
 }
 
